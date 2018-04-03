@@ -8,6 +8,14 @@
     Matrix Multiplication with pthreads
 */
 
+// We're going to create a typedef struct called matrix.
+typedef struct matrix
+{
+    int ** array;
+    int width;
+    int height;
+} matrix;
+
 
 // Create pointers to int [][].
 int ** matrixOne;
@@ -23,11 +31,13 @@ int ** matrixTwo;
 #define MATRIX_TWO_HEIGHT 3
 #define MAX_RANDOM_BOUND 20
 
-int fillMatrix(int ** matrix, int width, int height, int limit);
-int printMatrix(int ** matrix, int width, int height);
+void init_matrix(matrix * m, int width, int height);
+int fillMatrix(matrix m, int limit);
+int printMatrix(matrix m);
 int malloc_2D_array(int *** matrix, int width, int height);
 int ** matrix_multiplication(int ** matrixOne, int matrixOneWidth, int matrixOneHeight,
                           int ** matrixTwo, int matrixTwoWidth, int matrixTwoHeight);
+
 
 int main()
 {
@@ -55,6 +65,25 @@ int main()
     // insecure, but for our purposes, it is perfectly fine.
     srand( (unsigned int) time(NULL) * 2);
 
+    // New matrix code
+    matrix firstMatrix;
+    matrix secondMatrix;
+
+    // Initialize the matrices
+    init_matrix(&firstMatrix, 10, 10);
+    init_matrix(&secondMatrix, 10, 10);
+
+    // Fill the matrices
+    fillMatrix(firstMatrix, 10);
+    fillMatrix(secondMatrix, 10);
+
+    // Print out the matrices
+    printMatrix(firstMatrix);
+    printMatrix(secondMatrix);
+
+
+
+    /*
     fillMatrix(matrixOne, MATRIX_ONE_WIDTH, MATRIX_ONE_HEIGHT, MAX_RANDOM_BOUND);
     fillMatrix(matrixTwo, MATRIX_TWO_WIDTH, MATRIX_TWO_HEIGHT, MAX_RANDOM_BOUND);
 
@@ -65,23 +94,30 @@ int main()
 
     printf("ATTEMPT MATRIX MULTIPLICATION: \n");
     matrix_multiplication(matrixOne, MATRIX_ONE_WIDTH, MATRIX_ONE_HEIGHT, matrixTwo, MATRIX_TWO_WIDTH, MATRIX_TWO_HEIGHT);
-
+    */
     return 0;
 
 
 
 }
 
-int fillMatrix(int ** matrix, int width, int height, int limit)
+/*
+    fillMatrix()
+
+    The fillMatrix method takes in a matrix m and a int limit.
+    The method will fill the entire matrix with random numbers
+    between 1 to limit. It will return the number of modified entries.
+*/
+int fillMatrix(matrix m, int limit)
 {
     #ifdef DEBUG
-        printf("DEBUG [fillMatrix()]: Attempting to fill the matrix...");
+        printf("DEBUG [fillMatrix()]: Attempting to fill the matrix...\n");
     #endif
     int numberOfModifiedEntries = 0;
 
-    for (int i = 0; i < width * height; i++)
+    for (int i = 0; i < m.width * m.height; i++)
     {
-        matrix[i/width][i%width] = rand() % limit;
+        (m.array)[ i / m.width][ i % m.width] = 1 + rand() % limit;
         numberOfModifiedEntries++;
     }
 
@@ -89,16 +125,28 @@ int fillMatrix(int ** matrix, int width, int height, int limit)
 
 }
 
-int printMatrix(int ** matrix, int width, int height)
+int printMatrix(matrix m)
 {
-    for (int i = 0; i < height * width; i++)
+    // A simple printf that reports the number of rows and columns that this matrix has.
+    printf("This matrix has height %d (rows) and width %d (columns): \n", m.height, m.width);
+
+    for (int i = 0; i < m.height * m.width; i++)
     {
-        printf("%5d%s", matrix[i/width][i%width], (i % width == width - 1) ? "\n" : "");
+        printf("%5d%s", m.array[i/(m.width)][i%(m.width)],  // Print the element at the location
+            (i % (m.width) == (m.width) - 1) ? "\n" : "");  // If the last element of the line, add a space.
     }
 
+    // Successfully printed out the matrix.
     return 0;
 }
 
+/*
+    malloc_2D_array()
+
+    This method will allocate the memory within the 2D array located within
+    the (typedef) matrix struct. I purposefully kept this method separate in
+    order to keep the code a litte bit cleaner.
+*/
 int malloc_2D_array(int *** matrix, int width, int height)
 {
     // Since matrix is a pointer to a pointer, we'll need to first
@@ -143,6 +191,17 @@ int malloc_2D_array(int *** matrix, int width, int height)
     return 0;
 }
 
+
+/*
+    The initialize matrix method will take in the matrix pointer itself,
+*/
+void init_matrix(matrix * m, int width, int height)
+{
+    malloc_2D_array( &( (*m).array), width, height);
+    (*m).width = width;
+    (*m).height = height;
+}
+
 int ** matrix_multiplication(int ** matrixOne, int matrixOneWidth, int matrixOneHeight,
                           int ** matrixTwo, int matrixTwoWidth, int matrixTwoHeight)
 {
@@ -183,11 +242,11 @@ int ** matrix_multiplication(int ** matrixOne, int matrixOneWidth, int matrixOne
     }
     printf("RESULT MATRIX: \n");
 
-    printMatrix(resultMatrix, resultWidth, resultHeight);
+    //printMatrix(resultMatrix, resultWidth, resultHeight);
 
 
 
-
+    return 0;
 
 
 }
