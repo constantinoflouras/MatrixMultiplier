@@ -9,6 +9,7 @@
 */
 
 // We're going to create a typedef struct called matrix.
+
 typedef struct matrix
 {
     int ** array;
@@ -16,14 +17,7 @@ typedef struct matrix
     int height;
 } matrix;
 
-
-// Create pointers to int [][].
-int ** matrixOne;
-int ** matrixTwo;
-
-
 // Note that MATRIX_ONE_WIDTH has to be equal to MATRIX_TWO_HEIGHT.
-
 #define MATRIX_ONE_WIDTH 3
 #define MATRIX_ONE_HEIGHT 2
 
@@ -31,36 +25,18 @@ int ** matrixTwo;
 #define MATRIX_TWO_HEIGHT 3
 #define MAX_RANDOM_BOUND 20
 
+#define NUM_THREADS 2;
+
+// Method headers
 void init_matrix(matrix * m, int width, int height);
 int fillMatrix(matrix m, int limit);
 int printMatrix(matrix m);
 int malloc_2D_array(int *** matrix, int width, int height);
-int ** matrix_multiplication(int ** matrixOne, int matrixOneWidth, int matrixOneHeight,
-                          int ** matrixTwo, int matrixTwoWidth, int matrixTwoHeight);
+matrix matrix_multiplication(matrix m, matrix n);
 
 
 int main()
 {
-    // We'll need to malloc and fill the int[][].
-
-    if ( malloc_2D_array(&matrixOne, MATRIX_ONE_WIDTH, MATRIX_ONE_HEIGHT) != 0 ||
-         malloc_2D_array(&matrixTwo, MATRIX_TWO_WIDTH, MATRIX_TWO_HEIGHT) != 0 )
-    {
-        #ifdef DEBUG
-            printf("DEBUG [main()]: Since memory allocation failed, program terminating...\n");
-        #endif
-        return -1;
-    }
-    #ifdef DEBUG // This else statement is only necessary if we're debugging.
-    else
-    {
-            printf("DEBUG [main()]: Memory allocation of matrixOne and matrixTwo successful...\n");
-    }
-    #endif
-    //matrixTwo = malloc( sizeof( int[MATRIX_TWO_HEIGHT][MATRIX_TWO_WIDTH] ) );
-
-
-    // Now, we'll fill in the arrays with random integers.
     // Note that using srand with the time as the seed is cryptographically
     // insecure, but for our purposes, it is perfectly fine.
     srand( (unsigned int) time(NULL) * 2);
@@ -70,31 +46,27 @@ int main()
     matrix secondMatrix;
 
     // Initialize the matrices
-    init_matrix(&firstMatrix, 10, 10);
-    init_matrix(&secondMatrix, 10, 10);
+    init_matrix(&firstMatrix, MATRIX_ONE_WIDTH, MATRIX_ONE_HEIGHT);
+    init_matrix(&secondMatrix, MATRIX_TWO_WIDTH, MATRIX_TWO_HEIGHT);
 
     // Fill the matrices
-    fillMatrix(firstMatrix, 10);
-    fillMatrix(secondMatrix, 10);
+    fillMatrix(firstMatrix, MAX_RANDOM_BOUND);
+    fillMatrix(secondMatrix, MAX_RANDOM_BOUND);
 
     // Print out the matrices
+    printf("MATRIX #1:\n");
     printMatrix(firstMatrix);
+
+    printf("MATRIX #2:\n");
     printMatrix(secondMatrix);
 
+    // Do the actual matrix multiplication, and store the result in a matrix variable called result.
+    matrix result = matrix_multiplication(firstMatrix, secondMatrix);
 
+    // Finally, print out the results.
+    printf("RESULT:\n");
+    printMatrix(result);
 
-    /*
-    fillMatrix(matrixOne, MATRIX_ONE_WIDTH, MATRIX_ONE_HEIGHT, MAX_RANDOM_BOUND);
-    fillMatrix(matrixTwo, MATRIX_TWO_WIDTH, MATRIX_TWO_HEIGHT, MAX_RANDOM_BOUND);
-
-    printf("MATRIX #1: \n");
-    printMatrix(matrixOne, MATRIX_ONE_WIDTH, MATRIX_ONE_HEIGHT);
-    printf("MATRIX #2: \n");
-    printMatrix(matrixTwo, MATRIX_TWO_WIDTH, MATRIX_TWO_HEIGHT);
-
-    printf("ATTEMPT MATRIX MULTIPLICATION: \n");
-    matrix_multiplication(matrixOne, MATRIX_ONE_WIDTH, MATRIX_ONE_HEIGHT, matrixTwo, MATRIX_TWO_WIDTH, MATRIX_TWO_HEIGHT);
-    */
     return 0;
 
 
@@ -125,6 +97,11 @@ int fillMatrix(matrix m, int limit)
 
 }
 
+/*
+    printMatrix()
+
+    This method prints out the matrix m, with comma separated values.
+*/
 int printMatrix(matrix m)
 {
     // A simple printf that reports the number of rows and columns that this matrix has.
@@ -133,7 +110,7 @@ int printMatrix(matrix m)
     for (int i = 0; i < m.height * m.width; i++)
     {
         printf("%5d%s", m.array[i/(m.width)][i%(m.width)],  // Print the element at the location
-            (i % (m.width) == (m.width) - 1) ? "\n" : "");  // If the last element of the line, add a space.
+            (i % (m.width) == (m.width) - 1) ? "\n" : ", ");  // If the last element of the line, add a space.
     }
 
     // Successfully printed out the matrix.
@@ -197,13 +174,18 @@ int malloc_2D_array(int *** matrix, int width, int height)
 */
 void init_matrix(matrix * m, int width, int height)
 {
-    malloc_2D_array( &( (*m).array), width, height);
     (*m).width = width;
     (*m).height = height;
+    malloc_2D_array( &( (*m).array), width, height);
 }
 
-int ** matrix_multiplication(int ** matrixOne, int matrixOneWidth, int matrixOneHeight,
-                          int ** matrixTwo, int matrixTwoWidth, int matrixTwoHeight)
+/*
+    matrix_multiplication()
+
+    This method takes two methods, matrix m and matrix n, and multiplies them
+    using the typical matrix multiplication algorithm.
+*/
+matrix matrix_multiplication(matrix m, matrix n)
 {
     // First, we'll need to check that we can even do matrix_multiplication on these two particular
     // matrixes. In order to do so, we'll need to ensure that the widths are equal.
@@ -211,7 +193,7 @@ int ** matrix_multiplication(int ** matrixOne, int matrixOneWidth, int matrixOne
     // numberOfRows == matrixHeight
     // numberOfColumns == matrixWidth
 
-    if (matrixOneWidth != matrixTwoHeight /* Rows in matrixOne must equal columns in matrixTwo */)
+    if (m.width != n.height /* Rows in matrixOne must equal columns in matrixTwo */)
     {
         // This cannot be completed
         printf("ERROR [matrix_multiplication()]: The number of rows in matrix one must be equal to number of columns in matrix two!");
@@ -222,38 +204,75 @@ int ** matrix_multiplication(int ** matrixOne, int matrixOneWidth, int matrixOne
     // The resulting matrix will have the same number of rows as matrixOne (aka matrixOneHeight)
     // and the same number of columns (aka matrixTwoWidth).
 
-    int ** resultMatrix;
-    int resultWidth = matrixTwoWidth;
-    int resultHeight = matrixOneHeight;
+    matrix result;
 
-    malloc_2D_array(&resultMatrix, resultWidth , resultHeight);
+    init_matrix(&result, n.width, m.height);
 
 
-    for (int resultRow = 0; resultRow < resultHeight; resultRow++)
+    for (int resultRow = 0; resultRow < result.height; resultRow++)
     {
-        for (int resultColumn = 0; resultColumn < resultWidth; resultColumn++)
+        for (int resultColumn = 0; resultColumn < result.width; resultColumn++)
         {
-            resultMatrix[resultRow][resultColumn] = 0;
-            for (int elementNo = 0; (elementNo < matrixOneWidth) && (elementNo < matrixTwoHeight); elementNo++)
+            result.array[resultRow][resultColumn] = 0;
+            for (int elementNo = 0; (elementNo < m.width) && (elementNo < n.height); elementNo++)
             {
-                resultMatrix[resultRow][resultColumn] += matrixOne[/*height*/ resultRow][/*width*/ elementNo] * matrixTwo[elementNo][resultColumn];
+                result.array[resultRow][resultColumn] += m.array[/*height*/ resultRow][/*width*/ elementNo] * n.array[elementNo][resultColumn];
             }
         }
     }
-    printf("RESULT MATRIX: \n");
 
-    //printMatrix(resultMatrix, resultWidth, resultHeight);
-
-
-
-    return 0;
-
-
+    return result;
 }
 
-
-// Stub function. Will do something with it later.
-int matrix_mult(int ** matrixOne, int ** matrixTwo, int matrixOneRow, int matrixTwoCol)
+matrix matrix_multiplication_threaded(matrix m, matrix n)
 {
-    return 0;
+    // First, we'll need to check that we can even do matrix_multiplication on these two particular
+    // matrixes. In order to do so, we'll need to ensure that the widths are equal.
+
+    // numberOfRows == matrixHeight
+    // numberOfColumns == matrixWidth
+
+    if (m.width != n.height /* Rows in matrixOne must equal columns in matrixTwo */)
+    {
+        // This cannot be completed
+        printf("ERROR [matrix_multiplication()]: The number of rows in matrix one must be equal to number of columns in matrix two!");
+    }
+
+
+    // Now, we're going to allocate the memory for the result matrix.
+    // The resulting matrix will have the same number of rows as matrixOne (aka matrixOneHeight)
+    // and the same number of columns (aka matrixTwoWidth).
+
+    matrix result;
+
+    init_matrix(&result, n.width, m.height);
+
+
+    // We're going to create threads based on how many rows are in the matrix.
+    int incrementor = m.height / NUM_THREADS;
+
+    if (incrementor == 0)
+    {
+        // There are too many threads to handle this workload. Print out a warning that we'll
+        // use a more appropriate number of threads instead.
+        #ifdef DEBUG
+            printf("DEBUG [matrix_multiplication_threaded()]: Too many threads! Using a smaller number!");
+        #endif
+    }
+
+
+
+    for (int resultRow = 0; resultRow < result.height; resultRow++)
+    {
+        for (int resultColumn = 0; resultColumn < result.width; resultColumn++)
+        {
+            result.array[resultRow][resultColumn] = 0;
+            for (int elementNo = 0; (elementNo < m.width) && (elementNo < n.height); elementNo++)
+            {
+                result.array[resultRow][resultColumn] += m.array[/*height*/ resultRow][/*width*/ elementNo] * n.array[elementNo][resultColumn];
+            }
+        }
+    }
+
+    return result;
 }
