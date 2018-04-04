@@ -18,14 +18,14 @@ typedef struct matrix
 } matrix;
 
 // Note that MATRIX_ONE_WIDTH has to be equal to MATRIX_TWO_HEIGHT.
-#define MATRIX_ONE_WIDTH 3
-#define MATRIX_ONE_HEIGHT 2
+#define MATRIX_ONE_WIDTH 6
+#define MATRIX_ONE_HEIGHT 11
 
 #define MATRIX_TWO_WIDTH 4
-#define MATRIX_TWO_HEIGHT 3
+#define MATRIX_TWO_HEIGHT 6
 #define MAX_RANDOM_BOUND 20
 
-#define NUM_THREADS 2;
+#define NUM_THREADS 5
 
 // Method headers
 void init_matrix(matrix * m, int width, int height);
@@ -33,6 +33,7 @@ int fillMatrix(matrix m, int limit);
 int printMatrix(matrix m);
 int malloc_2D_array(int *** matrix, int width, int height);
 matrix matrix_multiplication(matrix m, matrix n);
+matrix matrix_multiplication_threaded(matrix m, matrix n);
 
 
 int main()
@@ -61,7 +62,7 @@ int main()
     printMatrix(secondMatrix);
 
     // Do the actual matrix multiplication, and store the result in a matrix variable called result.
-    matrix result = matrix_multiplication(firstMatrix, secondMatrix);
+    matrix result = matrix_multiplication_threaded(firstMatrix, secondMatrix);
 
     // Finally, print out the results.
     printf("RESULT:\n");
@@ -247,9 +248,20 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
 
     init_matrix(&result, n.width, m.height);
 
+    // Implement the code for threading.
+    // 22 / 4 = Minimum of 5 per thread
+    // 22 % 4 = Two threads will have an additional row.
+    
+    // The minimum number of rows per thread.
+    int min_per_thread = m.height / NUM_THREADS;
 
+    // Number of threads that will have one extra.
+    int threads_with_extra = m.height % NUM_THREADS;
+    
+    
     // We're going to create threads based on how many rows are in the matrix.
     int incrementor = m.height / NUM_THREADS;
+    int denom = m.height % NUM_THREADS;
 
     if (incrementor == 0)
     {
@@ -259,6 +271,32 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
             printf("DEBUG [matrix_multiplication_threaded()]: Too many threads! Using a smaller number!");
         #endif
     }
+    
+    for (int thread = 0; thread < NUM_THREADS ; thread++)
+    {
+        //printf("THREAD #%d: Handle rows %d to %d.\n", thread, (thread+1)*incrementor - 1 + thread%incrementor);
+        printf("MY THREAD #%d: Range is %d. \n", thread,
+            
+            // Calculate the starting position for this thread.
+            //  1    <    2                                         1
+            ( (thread < threads_with_extra ? thread * (min_per_thread+1) :
+                (threads_with_extra * (min_per_thread+1))
+                   + ((thread - threads_with_extra) * min_per_thread))));
+            
+            /*
+            // Calculate the ending position for this thread.
+            (((thread+1 > threads_with_extra) ? threads_with_extra : thread+1) * (min_per_thread+1)
+            + (thread+1 - threads_with_extra > 0 ? thread+1 : 0) * (min_per_thread)) - 1);
+            */
+            
+        printf("The number of threads with one extra row: %d\n", threads_with_extra);
+        printf("The minimum number of rows per thread is: %d\n", min_per_thread);
+    
+    }
+    
+        
+    
+
 
 
 

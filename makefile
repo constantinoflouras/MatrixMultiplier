@@ -6,7 +6,7 @@ CC = gcc
 
 #COMPILER_FLAGS specifies the additional compilation options we're using
 # -w suppresses all warnings
-COMPILER_FLAGS = -Wall -m32
+COMPILER_FLAGS = -Wall -std=c99
 
 #DEBUG_STATEMENTS specifies any debug statements we want to add
 DEBUG_STATEMENTS = -DDEBUG
