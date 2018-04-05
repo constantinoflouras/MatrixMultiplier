@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 #include <pthread.h>
 
 /*
@@ -49,6 +50,8 @@ struct pthreaded_calculate_results_args
 
 int main()
 {
+    struct timeval start, stop;
+    
     // Note that using srand with the time as the seed is cryptographically
     // insecure, but for our purposes, it is perfectly fine.
     srand( (unsigned int) time(NULL) * 2);
@@ -66,17 +69,24 @@ int main()
     fillMatrix(secondMatrix, MAX_RANDOM_BOUND);
 
     // Print out the matrices
-    printf("MATRIX #1:\n");
-    //printMatrix(firstMatrix);
+    // printf("MATRIX #1:\n");
+    // printMatrix(firstMatrix);
 
-    printf("MATRIX #2:\n");
-    //printMatrix(secondMatrix);
+    // printf("MATRIX #2:\n");
+    // printMatrix(secondMatrix);
 
     // Do the actual matrix multiplication, and store the result in a matrix variable called result.
+    gettimeofday(&start, NULL);
     matrix result = matrix_multiplication_threaded(firstMatrix, secondMatrix);
-
+    (void) result;
+    gettimeofday(&stop, NULL);
+    
     // Finally, print out the results.
     printf("RESULT:\n");
+    printf("Matrix %dx%d X Matrix %d,%d with %d threads took %lu.%lu \n",
+        firstMatrix.width, firstMatrix.height,
+        secondMatrix.width, secondMatrix.height,
+        NUM_THREADS, (stop.tv_sec - start.tv_sec), ((stop.tv_usec - start.tv_usec) / 1000));
     //printMatrix(result);
 
     return 0;
@@ -320,24 +330,6 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
         pthread_join(matrix_threads[thread], NULL);
     }
     
-        
-    
-
-
-    
-
-    //for (int resultRow = 0; resultRow < result.height; resultRow++)
-    //{
-    //    for (int resultColumn = 0; resultColumn < result.width; resultColumn++)
-    //    {
-    //        result.array[resultRow][resultColumn] = 0;
-    //        for (int elementNo = 0; (elementNo < m.width) && (elementNo < n.height); elementNo++)
-    //        {
-    //            result.array[resultRow][resultColumn] += m.array[/*height*/ resultRow][/*width*/ elementNo] * n.array[elementNo][resultColumn];
-    //        }
-    //    }
-    //}
-
     return result;
 }
 
