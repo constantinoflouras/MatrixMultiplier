@@ -18,14 +18,14 @@ typedef struct matrix
 } matrix;
 
 // Note that MATRIX_ONE_WIDTH has to be equal to MATRIX_TWO_HEIGHT.
-#define MATRIX_ONE_WIDTH 6
-#define MATRIX_ONE_HEIGHT 11
+#define MATRIX_ONE_WIDTH 100
+#define MATRIX_ONE_HEIGHT 5000
 
-#define MATRIX_TWO_WIDTH 4
-#define MATRIX_TWO_HEIGHT 6
+#define MATRIX_TWO_WIDTH 5000
+#define MATRIX_TWO_HEIGHT 100
 #define MAX_RANDOM_BOUND 20
 
-#define NUM_THREADS 5
+#define NUM_THREADS 4
 
 // Method headers
 void init_matrix(matrix * m, int width, int height);
@@ -34,7 +34,18 @@ int printMatrix(matrix m);
 int malloc_2D_array(int *** matrix, int width, int height);
 matrix matrix_multiplication(matrix m, matrix n);
 matrix matrix_multiplication_threaded(matrix m, matrix n);
+void calculate_thread_boundaries(int * start, int * end, int threadNum, int workAmount);
+void * pthreaded_calculate_results(void * arguments);
 
+struct pthreaded_calculate_results_args
+{
+    int start;
+    int end;
+    int threadNum;
+    matrix * m;
+    matrix * n;
+    matrix * r;
+};
 
 int main()
 {
@@ -56,17 +67,17 @@ int main()
 
     // Print out the matrices
     printf("MATRIX #1:\n");
-    printMatrix(firstMatrix);
+    //printMatrix(firstMatrix);
 
     printf("MATRIX #2:\n");
-    printMatrix(secondMatrix);
+    //printMatrix(secondMatrix);
 
     // Do the actual matrix multiplication, and store the result in a matrix variable called result.
     matrix result = matrix_multiplication_threaded(firstMatrix, secondMatrix);
 
     // Finally, print out the results.
     printf("RESULT:\n");
-    printMatrix(result);
+    //printMatrix(result);
 
     return 0;
 
@@ -251,19 +262,13 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
     // Implement the code for threading.
     // 22 / 4 = Minimum of 5 per thread
     // 22 % 4 = Two threads will have an additional row.
-    
-    // The minimum number of rows per thread.
-    int min_per_thread = m.height / NUM_THREADS;
-
-    // Number of threads that will have one extra.
-    int threads_with_extra = m.height % NUM_THREADS;
-    
-    
-    // We're going to create threads based on how many rows are in the matrix.
-    int incrementor = m.height / NUM_THREADS;
-    int denom = m.height % NUM_THREADS;
-
-    if (incrementor == 0)
+    #ifdef DEBUG
+        printf("DEBUG [matrix_multiplication_threaded()]: The number of threads with one extra row: %d\n",
+            m.height % NUM_THREADS);
+        printf("DEBUG [matrix_multiplication_threaded()]: The minimum number of rows per thread is: %d\n",
+            m.height / NUM_THREADS);
+    #endif
+    if ( (m.height / NUM_THREADS) == 0)
     {
         // There are too many threads to handle this workload. Print out a warning that we'll
         // use a more appropriate number of threads instead.
@@ -272,45 +277,117 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
         #endif
     }
     
+    pthread_t matrix_threads[NUM_THREADS];
+    
     for (int thread = 0; thread < NUM_THREADS ; thread++)
     {
-        //printf("THREAD #%d: Handle rows %d to %d.\n", thread, (thread+1)*incrementor - 1 + thread%incrementor);
-        printf("MY THREAD #%d: Range is %d. \n", thread,
-            
-            // Calculate the starting position for this thread.
-            //  1    <    2                                         1
-            ( (thread < threads_with_extra ? thread * (min_per_thread+1) :
-                (threads_with_extra * (min_per_thread+1))
-                   + ((thread - threads_with_extra) * min_per_thread))));
-            
-            /*
-            // Calculate the ending position for this thread.
-            (((thread+1 > threads_with_extra) ? threads_with_extra : thread+1) * (min_per_thread+1)
-            + (thread+1 - threads_with_extra > 0 ? thread+1 : 0) * (min_per_thread)) - 1);
-            */
-            
-        printf("The number of threads with one extra row: %d\n", threads_with_extra);
-        printf("The minimum number of rows per thread is: %d\n", min_per_thread);
+        int start;
+        int end;
+        
+        calculate_thread_boundaries(&start, &end, thread, m.height);
+        
+        // printf("THREAD #%d: Range is row %d to %d. \n", thread, start+1, end+1);
+        
+        // Build the struct.
+        
+        /*
+            struct pthreaded_calculate_results_args
+            {
+                int start;
+                int finish;
+                matrix * m;
+                matrix * n;
+                matrix * r;
+            };
+        */
+        
+        struct pthreaded_calculate_results_args * a;
+        
+        a = malloc(sizeof (struct pthreaded_calculate_results_args));
+        
+        (*a).start = start;
+        (*a).end = end;
+        (*a).m = &m;
+        (*a).n = &n;
+        (*a).r = &result;
+        (*a).threadNum = thread;
+        
+        pthread_create(&(matrix_threads[thread]), NULL, pthreaded_calculate_results, a);
+    }
     
+    for (int thread = 0; thread < NUM_THREADS; thread++)
+    {
+        pthread_join(matrix_threads[thread], NULL);
     }
     
         
     
 
 
+    
 
-
-    for (int resultRow = 0; resultRow < result.height; resultRow++)
-    {
-        for (int resultColumn = 0; resultColumn < result.width; resultColumn++)
-        {
-            result.array[resultRow][resultColumn] = 0;
-            for (int elementNo = 0; (elementNo < m.width) && (elementNo < n.height); elementNo++)
-            {
-                result.array[resultRow][resultColumn] += m.array[/*height*/ resultRow][/*width*/ elementNo] * n.array[elementNo][resultColumn];
-            }
-        }
-    }
+    //for (int resultRow = 0; resultRow < result.height; resultRow++)
+    //{
+    //    for (int resultColumn = 0; resultColumn < result.width; resultColumn++)
+    //    {
+    //        result.array[resultRow][resultColumn] = 0;
+    //        for (int elementNo = 0; (elementNo < m.width) && (elementNo < n.height); elementNo++)
+    //        {
+    //            result.array[resultRow][resultColumn] += m.array[/*height*/ resultRow][/*width*/ elementNo] * n.array[elementNo][resultColumn];
+    //        }
+    //    }
+    //}
 
     return result;
 }
+
+void calculate_thread_boundaries(int * start, int * end, int threadNum, int workAmount)
+{
+    /*
+    // The minimum number of rows per thread.
+    int min_per_thread = m.height / NUM_THREADS;
+
+    // Number of threads that will have one extra.
+    int threads_with_extra = m.height % NUM_THREADS;
+    */
+    
+    *start = (  (threadNum) < (workAmount%NUM_THREADS) ?  (threadNum) * ((workAmount/NUM_THREADS)+1)     :
+                 (workAmount%NUM_THREADS * ((workAmount/NUM_THREADS)+1)) + (   ((threadNum) - workAmount%NUM_THREADS) * (workAmount/NUM_THREADS))   )   ;
+                 
+    *end = (  (threadNum+1) < (workAmount%NUM_THREADS) ?  (threadNum+1) * ((workAmount/NUM_THREADS)+1)     :
+                 (workAmount%NUM_THREADS * ((workAmount/NUM_THREADS)+1)) + (   ((threadNum+1) - workAmount%NUM_THREADS) * (workAmount/NUM_THREADS))   )    - 1;
+}
+
+
+/*
+    This function is STRICTLY for pthreads ONLY.
+*/
+void * pthreaded_calculate_results(void * arguments)
+{
+    struct pthreaded_calculate_results_args * a = (struct pthreaded_calculate_results_args *) arguments;
+    
+    int start = (*a).start;
+    int finish = (*a).end;
+    int threadNum = (*a).threadNum;
+    
+    
+    for (int resultRow = start; resultRow <= finish; resultRow++)
+    {
+        for (int resultColumn = 0; resultColumn < (*(*a).r).width; resultColumn++)
+        {
+            (*(*a).r).array[resultRow][resultColumn] = 0;
+            for (int elementNo = 0; (elementNo < (*(*a).m).width) && (elementNo < (*(*a).n).height); elementNo++)
+            {
+                (*(*a).r).array[resultRow][resultColumn] += (*(*a).m).array[/*height*/ resultRow][/*width*/ elementNo] * (*(*a).n).array[elementNo][resultColumn];
+            }
+        }
+    }
+    
+    #ifdef DEBUG
+        printf("DEBUG [pthreaded_calculate_results()]: THREAD %d has finished calculating rows %d to %d.\n", threadNum, start, finish);
+    #endif
+    
+    return NULL;
+}
+
+

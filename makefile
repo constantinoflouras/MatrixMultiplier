@@ -12,7 +12,7 @@ COMPILER_FLAGS = -Wall -std=c99
 DEBUG_STATEMENTS = -DDEBUG
 
 #LINKER_FLAGS specifies the libraries we're linking against
-LINKER_FLAGS =
+LINKER_FLAGS = -pthread
 
 #OBJ_NAME specifies the name of our exectuable
 OBJ_NAME = matrix_multiplication
