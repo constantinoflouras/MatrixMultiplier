@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
 #include <pthread.h>
 #include <strings.h>
-
+#include "debug.h"
 /*
     Constantino Flouras
     April 2nd, 2018
@@ -27,7 +28,7 @@ typedef struct matrix
 #define MATRIX_TWO_HEIGHT 500
 #define MAX_RANDOM_BOUND 20
 
-#define NUM_THREADS 2
+#define NUM_THREADS 16
 
 // Method headers
 void init_matrix(matrix * m, int width, int height);
@@ -49,74 +50,73 @@ struct pthreaded_calculate_results_args
     matrix * r;
 };
 
-// This is a simple compare strings method that I created for now.
-int compare_strings(char * first, char * second, int numChars)
+struct setup_values
 {
-    int i;
-    for (i = 0; i < numChars; i++)
-    {
-        if (first[i] != second[i])
-            return 0;
-    }
-    return 1;
-}
+    //  These two must be equal
+    int n_matrix_two_height;
+    int n_matrix_one_width;
 
-int main(int argc, char * argv[])
+    //  These don't matter
+    int n_matrix_one_height;
+    int n_matrix_two_width;
+
+    //  Number of threads
+    int n_number_of_threads;
+};
+
+/*
+    This is a simple compare strings method that I created for now.
+    In retrospect, I totally could have used strncmp.... or not lol
+*/
+
+
+
+int handle_arguments(int argc, char * argv[], struct setup_values * setup_values)
 {
-    // THe following are used to store the starting and stopping times
-    struct timeval start, stop;
-    
-    // If no arguments were supplied, then we'll go ahead and print out a helpful message.
-    if (argc <= 1)
-    {
-        // No arguments were supplied.
-        //
-        //  ./matrix_multiplication --m1 100x100 --m2 200x200 --numThreads 2
-        //
-        //
-        //
-        //
-        printf("No arguments were supplied. Here's a helpful guide: \n%s",
-            "./matrix_multiplication --m1 100x100 --m2 200x200 --numThreads 2");
-        printf("\n\n--m1\tsize of matrix 1, width x height.");
-        printf(  "\n--m2\tsize of matrix 2, width x height.");
-        printf("\n\nWhen specifying the size of the matrixes\n - the width of matrix 1 must match the height of matrix 2.");
-        printf("\n - Separate the width and height with an \"x\", no space between numbers and the \"x\".\n\n");
-        
-        return -1;
-    }
-    
     // Now, we're going to go ahead and parse the input values. We'll do this using a loop.
-    #ifdef DEBUG
-        printf("DEBUG [main()]: Parsing command line arguments...");
-    #endif
-    
-    // This is the argument number that we're currently on.
-    int argNum = 1;
+    debug_printf("Parsing command line arguments...\n");
+    int argNum = 0;
+
     while (argNum < argc)
     {
-        #ifdef DEBUG
-            printf("DEBUG [main()]: Processing argument number %d...", argNum);
-        #endif
-        
-        int isMatrixSize = compare_strings(argv[argNum], "--m1", 5);
-        if (isMatrixSize)
+        debug_printf("Processing argument number %d...\n", argNum);
+
+        if (!strncmp(argv[argNum], "--m1", 4))
         {
             // The following argument is the matrix size. Now, assuming that the input is proper,
             // we'll go ahead and pull the size from the following argument.
             // TODO: FIX THIS!
+            debug_printf("Detected argument --m1\n");
+
+            /*  Logic for processing this argument needs to go here...  */
             argNum++;
-            char argv[argNum]
         }
-        printf("DEBUG: The test output for argument %d is %d\n", argNum, test);
+        //printf("DEBUG: The test output for argument %d is %d\n", argNum, test);
+        argNum++;
     }
-    
-    #ifdef DEBUG
-        printf("DEBUG [main()]: Finished parsing command line arguments.");
-    #endif
-    
-    
-    
+}
+
+int main(int argc, char * argv[])
+{
+    // The following are used to store the starting and stopping times
+    struct timeval start, stop;
+
+    struct setup_values setup_values;
+
+    if (!handle_arguments(argc, argv, &setup_values))
+    {
+        printf("No arguments or invalid arguments were supplied. Here's a helpful guide:\n"
+            "./matrix_multiplication --m1 100x100 --m2 200x200 --numThreads 2\n"
+            "\n--m1\tsize of matrix 1, width x height."
+            "\n--m2\tsize of matrix 2, width x height."
+            "\n\nWhen specifying the size of the matrixes\n - the width of matrix 1 must match the height of matrix 2."
+            "\n - Separate the width and height with an \"x\", no space between numbers and the \"x\".\n\n");
+        return -1;
+    };
+
+    debug_printf("DEBUG [main()]: Finished parsing command line arguments.");
+
+
     // Note that using srand with the time as the seed is cryptographically
     // insecure, but for our purposes, it is perfectly fine.
     srand( (unsigned int) time(NULL) * 2);
@@ -145,7 +145,7 @@ int main(int argc, char * argv[])
     matrix result = matrix_multiplication_threaded(firstMatrix, secondMatrix);
     (void) result;
     gettimeofday(&stop, NULL);
-    
+
     // Finally, print out the results.
     printf("RESULT:\n");
     printf("Matrix %dx%d X Matrix %d,%d with %d threads took %lu.%lu \n",
@@ -352,20 +352,20 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
             printf("DEBUG [matrix_multiplication_threaded()]: Too many threads! Using a smaller number!");
         #endif
     }
-    
+
     pthread_t matrix_threads[NUM_THREADS];
-    
+
     for (int thread = 0; thread < NUM_THREADS ; thread++)
     {
         int start;
         int end;
-        
+
         calculate_thread_boundaries(&start, &end, thread, m.height);
-        
+
         // printf("THREAD #%d: Range is row %d to %d. \n", thread, start+1, end+1);
-        
+
         // Build the struct.
-        
+
         /*
             struct pthreaded_calculate_results_args
             {
@@ -376,26 +376,26 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
                 matrix * r;
             };
         */
-        
+
         struct pthreaded_calculate_results_args * a;
-        
+
         a = malloc(sizeof (struct pthreaded_calculate_results_args));
-        
+
         (*a).start = start;
         (*a).end = end;
         (*a).m = &m;
         (*a).n = &n;
         (*a).r = &result;
         (*a).threadNum = thread;
-        
+
         pthread_create(&(matrix_threads[thread]), NULL, pthreaded_calculate_results, a);
     }
-    
+
     for (int thread = 0; thread < NUM_THREADS; thread++)
     {
         pthread_join(matrix_threads[thread], NULL);
     }
-    
+
     return result;
 }
 
@@ -408,10 +408,10 @@ void calculate_thread_boundaries(int * start, int * end, int threadNum, int work
     // Number of threads that will have one extra.
     int threads_with_extra = m.height % NUM_THREADS;
     */
-    
+
     *start = (  (threadNum) < (workAmount%NUM_THREADS) ?  (threadNum) * ((workAmount/NUM_THREADS)+1)     :
                  (workAmount%NUM_THREADS * ((workAmount/NUM_THREADS)+1)) + (   ((threadNum) - workAmount%NUM_THREADS) * (workAmount/NUM_THREADS))   )   ;
-                 
+
     *end = (  (threadNum+1) < (workAmount%NUM_THREADS) ?  (threadNum+1) * ((workAmount/NUM_THREADS)+1)     :
                  (workAmount%NUM_THREADS * ((workAmount/NUM_THREADS)+1)) + (   ((threadNum+1) - workAmount%NUM_THREADS) * (workAmount/NUM_THREADS))   )    - 1;
 }
@@ -423,12 +423,12 @@ void calculate_thread_boundaries(int * start, int * end, int threadNum, int work
 void * pthreaded_calculate_results(void * arguments)
 {
     struct pthreaded_calculate_results_args * a = (struct pthreaded_calculate_results_args *) arguments;
-    
+
     int start = (*a).start;
     int finish = (*a).end;
     int threadNum = (*a).threadNum;
-    
-    
+
+
     for (int resultRow = start; resultRow <= finish; resultRow++)
     {
         for (int resultColumn = 0; resultColumn < (*(*a).r).width; resultColumn++)
@@ -440,13 +440,12 @@ void * pthreaded_calculate_results(void * arguments)
             }
         }
     }
-    
+
     #ifdef DEBUG
         printf("DEBUG [pthreaded_calculate_results()]: THREAD %d has finished calculating rows %d to %d.\n", threadNum, start, finish);
     #endif
-    
+
     free(a);
-    
+
     return NULL;
 }
-
