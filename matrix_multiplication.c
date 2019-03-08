@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <strings.h>
 
 /*
     Constantino Flouras
@@ -10,7 +11,7 @@
 */
 
 // We're going to create a typedef struct called matrix.
-
+// A matrix contains a double-pointer to an array, as well as an integer width and height
 typedef struct matrix
 {
     int ** array;
@@ -19,14 +20,14 @@ typedef struct matrix
 } matrix;
 
 // Note that MATRIX_ONE_WIDTH has to be equal to MATRIX_TWO_HEIGHT.
-#define MATRIX_ONE_WIDTH 100
-#define MATRIX_ONE_HEIGHT 5000
+#define MATRIX_ONE_WIDTH 500
+#define MATRIX_ONE_HEIGHT 1000
 
-#define MATRIX_TWO_WIDTH 5000
-#define MATRIX_TWO_HEIGHT 100
+#define MATRIX_TWO_WIDTH 1000
+#define MATRIX_TWO_HEIGHT 500
 #define MAX_RANDOM_BOUND 20
 
-#define NUM_THREADS 4
+#define NUM_THREADS 2
 
 // Method headers
 void init_matrix(matrix * m, int width, int height);
@@ -48,9 +49,73 @@ struct pthreaded_calculate_results_args
     matrix * r;
 };
 
-int main()
+// This is a simple compare strings method that I created for now.
+int compare_strings(char * first, char * second, int numChars)
 {
+    int i;
+    for (i = 0; i < numChars; i++)
+    {
+        if (first[i] != second[i])
+            return 0;
+    }
+    return 1;
+}
+
+int main(int argc, char * argv[])
+{
+    // THe following are used to store the starting and stopping times
     struct timeval start, stop;
+    
+    // If no arguments were supplied, then we'll go ahead and print out a helpful message.
+    if (argc <= 1)
+    {
+        // No arguments were supplied.
+        //
+        //  ./matrix_multiplication --m1 100x100 --m2 200x200 --numThreads 2
+        //
+        //
+        //
+        //
+        printf("No arguments were supplied. Here's a helpful guide: \n%s",
+            "./matrix_multiplication --m1 100x100 --m2 200x200 --numThreads 2");
+        printf("\n\n--m1\tsize of matrix 1, width x height.");
+        printf(  "\n--m2\tsize of matrix 2, width x height.");
+        printf("\n\nWhen specifying the size of the matrixes\n - the width of matrix 1 must match the height of matrix 2.");
+        printf("\n - Separate the width and height with an \"x\", no space between numbers and the \"x\".\n\n");
+        
+        return -1;
+    }
+    
+    // Now, we're going to go ahead and parse the input values. We'll do this using a loop.
+    #ifdef DEBUG
+        printf("DEBUG [main()]: Parsing command line arguments...");
+    #endif
+    
+    // This is the argument number that we're currently on.
+    int argNum = 1;
+    while (argNum < argc)
+    {
+        #ifdef DEBUG
+            printf("DEBUG [main()]: Processing argument number %d...", argNum);
+        #endif
+        
+        int isMatrixSize = compare_strings(argv[argNum], "--m1", 5);
+        if (isMatrixSize)
+        {
+            // The following argument is the matrix size. Now, assuming that the input is proper,
+            // we'll go ahead and pull the size from the following argument.
+            // TODO: FIX THIS!
+            argNum++;
+            char argv[argNum]
+        }
+        printf("DEBUG: The test output for argument %d is %d\n", argNum, test);
+    }
+    
+    #ifdef DEBUG
+        printf("DEBUG [main()]: Finished parsing command line arguments.");
+    #endif
+    
+    
     
     // Note that using srand with the time as the seed is cryptographically
     // insecure, but for our purposes, it is perfectly fine.
@@ -218,7 +283,8 @@ matrix matrix_multiplication(matrix m, matrix n)
     if (m.width != n.height /* Rows in matrixOne must equal columns in matrixTwo */)
     {
         // This cannot be completed
-        printf("ERROR [matrix_multiplication()]: The number of rows in matrix one must be equal to number of columns in matrix two!");
+        printf("ERROR [matrix_multiplication()]: The number of rows in matrix one %s",
+        "must be equal to number of columns in matrix two!");
     }
 
 
@@ -379,7 +445,8 @@ void * pthreaded_calculate_results(void * arguments)
         printf("DEBUG [pthreaded_calculate_results()]: THREAD %d has finished calculating rows %d to %d.\n", threadNum, start, finish);
     #endif
     
+    free(a);
+    
     return NULL;
 }
-
 
