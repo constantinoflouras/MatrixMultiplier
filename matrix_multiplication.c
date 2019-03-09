@@ -30,7 +30,9 @@ typedef struct matrix
 
 #define NUM_THREADS 16
 
-// Method headers
+/*
+    Function declarations
+*/
 void init_matrix(matrix * m, int width, int height);
 int fillMatrix(matrix m, int limit);
 int printMatrix(matrix m);
@@ -39,6 +41,7 @@ matrix matrix_multiplication(matrix m, matrix n);
 matrix matrix_multiplication_threaded(matrix m, matrix n);
 void calculate_thread_boundaries(int * start, int * end, int threadNum, int workAmount);
 void * pthreaded_calculate_results(void * arguments);
+int convert_matrix_text_representation(char * str, int * n_matrix_width, int * n_matrix_height);
 
 struct pthreaded_calculate_results_args
 {
@@ -50,51 +53,115 @@ struct pthreaded_calculate_results_args
     matrix * r;
 };
 
+/*
+    Struct: setup_values
+    Description:
+        Contains the setup values for this run of the program.
+        Ideally, these should be configured through arguments passed,
+        but if those are invalid, we can also use default values instead.
+        The n_matrix_one_width and the n_matrix_two_height must be equal.
+*/
 struct setup_values
 {
-    //  These two must be equal
-    int n_matrix_two_height;
-    int n_matrix_one_width;
-
-    //  These don't matter
+    int n_matrix_one_width;     /*  Matrix #1 arguments */
     int n_matrix_one_height;
+    int n_matrix_two_height;    /*  Matrix #2 arguments */
     int n_matrix_two_width;
-
-    //  Number of threads
-    int n_number_of_threads;
+    int n_number_of_threads;    /*  Number of threads   */
 };
 
 /*
-    This is a simple compare strings method that I created for now.
-    In retrospect, I totally could have used strncmp.... or not lol
+    Function: handle_arguments
+    Description:
+        Given the argument counter and array of arguments, set up the arguments
+        for this program run and store them in a setup_values structure of which
+        is pointed to by the setup_values pointer.
 */
-
-
-
 int handle_arguments(int argc, char * argv[], struct setup_values * setup_values)
 {
-    // Now, we're going to go ahead and parse the input values. We'll do this using a loop.
     debug_printf("Parsing command line arguments...\n");
+    
+    /*  Iterate through all arguments   */
     int argNum = 0;
-
     while (argNum < argc)
     {
-        debug_printf("Processing argument number %d...\n", argNum);
-
+        /*  Matrix one configuration    */
         if (!strncmp(argv[argNum], "--m1", 4))
         {
-            // The following argument is the matrix size. Now, assuming that the input is proper,
-            // we'll go ahead and pull the size from the following argument.
-            // TODO: FIX THIS!
             debug_printf("Detected argument --m1\n");
-
-            /*  Logic for processing this argument needs to go here...  */
             argNum++;
+            if (convert_matrix_text_representation(argv[argNum],
+                &(setup_values->n_matrix_one_width), &(setup_values->n_matrix_one_height)))
+            {
+                /*  Failure    */
+                printf("Invalid value specified for --m1\n");
+                setup_values->n_matrix_one_width = 0;
+                setup_values->n_matrix_one_height = 0;
+            }
+            debug_printf("Grabbed the values for matrix 1: %d x %d\n", setup_values->n_matrix_one_width, setup_values->n_matrix_one_height);
         }
-        //printf("DEBUG: The test output for argument %d is %d\n", argNum, test);
+        else if (!strncmp(argv[argNum], "--m2", 4))
+        {
+            debug_printf("Detected argument --m2\n");
+            argNum++;
+            if (convert_matrix_text_representation(argv[argNum],
+                &(setup_values->n_matrix_two_width), &(setup_values->n_matrix_two_height)))
+            {
+                /*  Failure    */
+                printf("Invalid value specified for --m2\n");
+                setup_values->n_matrix_two_width = 0;
+                setup_values->n_matrix_two_height = 0;
+            }
+            debug_printf("Grabbed the values for matrix 2: %d x %d\n", setup_values->n_matrix_two_width, setup_values->n_matrix_two_height);
+        }
         argNum++;
     }
+    
+    return -1;
 }
+
+/*
+    Function: convert_matrix_text_representation
+    Description:
+        Takes a null-terminated string input that represents a matrix
+        (e.g. 100x100) and converts it to two integers-- width and height.
+        Returns 0 upon success, 1 upon failure.
+*/
+int convert_matrix_text_representation(char * str, int * n_matrix_width, int * n_matrix_height)
+{
+    debug_printf("Received the following string: %s\n", str);
+    
+    int cntr = 0;
+    int x_break = -1;    /*  Location of the 'x', -1 until found    */
+    int str_length = 0;
+    *n_matrix_width = 0;
+    *n_matrix_height = 0;
+    
+    /*  Determine the location of the 'x' character, and split the string based on that.*/
+    while (str[cntr] != '\0')
+    {
+        str_length += 1;
+        
+        if (str[cntr] == 'x')
+        {
+            x_break = cntr;
+        }
+        else
+        {
+            /* Based on whether we found the x_break, build the n_matrix_width
+                or the n_matrix_height. */
+            if (x_break == -1)
+                *n_matrix_width = (*n_matrix_width * 10) + (str[cntr] - '0');
+            else
+                *n_matrix_height = (*n_matrix_height * 10) + (str[cntr] - '0');
+        }
+        
+        cntr++;
+    }
+    
+    return (x_break == -1);
+}
+
 
 int main(int argc, char * argv[])
 {
@@ -114,7 +181,7 @@ int main(int argc, char * argv[])
         return -1;
     };
 
-    debug_printf("DEBUG [main()]: Finished parsing command line arguments.");
+    debug_printf("DEBUG [main()]: Finished parsing command line arguments.\n");
 
 
     // Note that using srand with the time as the seed is cryptographically
