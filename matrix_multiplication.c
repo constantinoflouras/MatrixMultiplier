@@ -13,6 +13,14 @@
 
 // We're going to create a typedef struct called matrix.
 // A matrix contains a double-pointer to an array, as well as an integer width and height
+
+/*
+    Typedef: matrix
+    Description:
+        Contains all of the contents of a dynamically allocated matrix.
+        The matrix itself is actually allocated as a 2D array, and thus we'll
+        need to use malloc/free commands in its initialization.
+*/
 typedef struct matrix
 {
     int ** array;
@@ -28,18 +36,16 @@ typedef struct matrix
 #define MATRIX_TWO_HEIGHT 500
 #define MAX_RANDOM_BOUND 20
 
-#define NUM_THREADS 16
-
 /*
     Function declarations
 */
 void init_matrix(matrix * m, int width, int height);
 int fillMatrix(matrix m, int limit);
 int printMatrix(matrix m);
-int malloc_2D_array(int *** matrix, int width, int height);
+int malloc_matrix_arr(int *** matrix, int width, int height);
 matrix matrix_multiplication(matrix m, matrix n);
-matrix matrix_multiplication_threaded(matrix m, matrix n);
-void calculate_thread_boundaries(int * start, int * end, int threadNum, int workAmount);
+matrix matrix_multiplication_threaded(matrix m, matrix n, int num_threads);
+void calculate_thread_boundaries(int * start, int * end, int threadNum, int workAmount, int num_threads);
 void * pthreaded_calculate_results(void * arguments);
 int convert_matrix_text_representation(char * str, int * n_matrix_width, int * n_matrix_height);
 
@@ -97,6 +103,7 @@ int handle_arguments(int argc, char * argv[], struct setup_values * setup_values
                 printf("Invalid value specified for --m1\n");
                 setup_values->n_matrix_one_width = 0;
                 setup_values->n_matrix_one_height = 0;
+                return -1;
             }
             debug_printf("Grabbed the values for matrix 1: %d x %d\n", setup_values->n_matrix_one_width, setup_values->n_matrix_one_height);
         }
@@ -111,13 +118,36 @@ int handle_arguments(int argc, char * argv[], struct setup_values * setup_values
                 printf("Invalid value specified for --m2\n");
                 setup_values->n_matrix_two_width = 0;
                 setup_values->n_matrix_two_height = 0;
+                return -1;
             }
             debug_printf("Grabbed the values for matrix 2: %d x %d\n", setup_values->n_matrix_two_width, setup_values->n_matrix_two_height);
+        }
+        else if (!strncmp(argv[argNum], "--numThreads", 12))
+        {
+            /*  Number of threads passed */
+            debug_printf("Detected argument --numThreads\n");
+            argNum++;
+            
+            int cntr = 0;
+            setup_values->n_number_of_threads = 0;
+            while (argv[argNum][cntr] != '\0')
+            {
+                setup_values->n_number_of_threads = (setup_values->n_number_of_threads * 10) + (argv[argNum][cntr] - '0');
+                cntr++;
+            }
+            printf("The number of threads is: %d\n", setup_values->n_number_of_threads);
+            
         }
         argNum++;
     }
     
-    return -1;
+    if (setup_values->n_number_of_threads <= 0)
+    {
+        debug_printf("Invaid number of threads! Reset to 1.\n");
+        setup_values->n_number_of_threads = 1;
+    }
+    
+    return 0;
 }
 
 /*
@@ -170,7 +200,8 @@ int main(int argc, char * argv[])
 
     struct setup_values setup_values;
 
-    if (!handle_arguments(argc, argv, &setup_values))
+    /*  Attempt to handle the arguments. If there is an error, explicitly say so.   */
+    if (handle_arguments(argc, argv, &setup_values))
     {
         printf("No arguments or invalid arguments were supplied. Here's a helpful guide:\n"
             "./matrix_multiplication --m1 100x100 --m2 200x200 --numThreads 2\n"
@@ -188,28 +219,21 @@ int main(int argc, char * argv[])
     // insecure, but for our purposes, it is perfectly fine.
     srand( (unsigned int) time(NULL) * 2);
 
-    // New matrix code
+    /*  Declare, create, and initialize the matrices... */
     matrix firstMatrix;
     matrix secondMatrix;
+    init_matrix(&firstMatrix, setup_values.n_matrix_one_width, setup_values.n_matrix_one_height);
+    init_matrix(&secondMatrix, setup_values.n_matrix_two_width, setup_values.n_matrix_two_height);
 
-    // Initialize the matrices
-    init_matrix(&firstMatrix, MATRIX_ONE_WIDTH, MATRIX_ONE_HEIGHT);
-    init_matrix(&secondMatrix, MATRIX_TWO_WIDTH, MATRIX_TWO_HEIGHT);
-
-    // Fill the matrices
+    /*  Fill the matrices with random numerical data based on a maximum bound...*/
     fillMatrix(firstMatrix, MAX_RANDOM_BOUND);
     fillMatrix(secondMatrix, MAX_RANDOM_BOUND);
 
-    // Print out the matrices
-    // printf("MATRIX #1:\n");
-    // printMatrix(firstMatrix);
-
-    // printf("MATRIX #2:\n");
-    // printMatrix(secondMatrix);
+    /*  TODO: Add a flag that allows printing out the matrix  */
 
     // Do the actual matrix multiplication, and store the result in a matrix variable called result.
     gettimeofday(&start, NULL);
-    matrix result = matrix_multiplication_threaded(firstMatrix, secondMatrix);
+    matrix result = matrix_multiplication_threaded(firstMatrix, secondMatrix, setup_values.n_number_of_threads);
     (void) result;
     gettimeofday(&stop, NULL);
 
@@ -218,7 +242,7 @@ int main(int argc, char * argv[])
     printf("Matrix %dx%d X Matrix %d,%d with %d threads took %lu.%lu \n",
         firstMatrix.width, firstMatrix.height,
         secondMatrix.width, secondMatrix.height,
-        NUM_THREADS, (stop.tv_sec - start.tv_sec), ((stop.tv_usec - start.tv_usec) / 1000));
+        setup_values.n_number_of_threads, (stop.tv_sec - start.tv_sec), ((stop.tv_usec - start.tv_usec) / 1000));
     //printMatrix(result);
 
     return 0;
@@ -228,17 +252,16 @@ int main(int argc, char * argv[])
 }
 
 /*
-    fillMatrix()
-
-    The fillMatrix method takes in a matrix m and a int limit.
-    The method will fill the entire matrix with random numbers
-    between 1 to limit. It will return the number of modified entries.
+    Function: fillMatrix()
+    Description:
+        The fillMatrix method takes in a matrix m and a int limit.
+        The method will fill the entire matrix with random numbers
+        between 1 to limit. It will return the number of modified entries.
 */
 int fillMatrix(matrix m, int limit)
 {
-    #ifdef DEBUG
-        printf("DEBUG [fillMatrix()]: Attempting to fill the matrix...\n");
-    #endif
+    debug_printf("Attempting to fill the matrix...\n");
+    
     int numberOfModifiedEntries = 0;
 
     for (int i = 0; i < m.width * m.height; i++)
@@ -252,13 +275,12 @@ int fillMatrix(matrix m, int limit)
 }
 
 /*
-    printMatrix()
-
-    This method prints out the matrix m, with comma separated values.
+    Function: printMatrix()
+    Desription:
+        Prints out the matrix m, with comma separated values.
 */
 int printMatrix(matrix m)
 {
-    // A simple printf that reports the number of rows and columns that this matrix has.
     printf("This matrix has height %d (rows) and width %d (columns): \n", m.height, m.width);
 
     for (int i = 0; i < m.height * m.width; i++)
@@ -267,39 +289,57 @@ int printMatrix(matrix m)
             (i % (m.width) == (m.width) - 1) ? "\n" : ", ");  // If the last element of the line, add a space.
     }
 
-    // Successfully printed out the matrix.
+    /*  Return success  */
     return 0;
 }
 
 /*
-    malloc_2D_array()
-
-    This method will allocate the memory within the 2D array located within
-    the (typedef) matrix struct. I purposefully kept this method separate in
-    order to keep the code a litte bit cleaner.
+    Function:   malloc_matrix_arr()
+    Description:
+        This method will allocate the memory within the 2D array located within
+        the (typedef) matrix struct. I purposefully kept this method separate in
+        order to keep the code a litte bit cleaner.
 */
-int malloc_2D_array(int *** matrix, int width, int height)
+int malloc_matrix_arr(int *** matrix, int width, int height)
 {
-    // Since matrix is a pointer to a pointer, we'll need to first
-    // malloc the space for the initial pointers, and then malloc a whole
-    // bunch of pointers within those pointers.
-
-    #ifdef DEBUG
-        printf("DEBUG [malloc_2D_array()]: Received pointer %p\n", matrix);
-    #endif
-
+    /*
+        The array contained within the matrix structure is a 2D array.
+        In order to change the 2D array pointer, such as in a memory allocation,
+        use a pointer to a 2D array pointer.... or a * to a **, which is a ***.
+    */
+    debug_printf("Received pointer %p\n", matrix);
+    
+    /*
+        Step #1: Allocate memory to store the pointers. These pointers are for
+        each "height" with the matrix itself.
+        
+        array[][]
+        0:      space to store pointer to array[]
+        1:      space to store pointer to array[]
+        2:      space to store pointer to array[]
+        ..............
+        HEIGHT: space to store pointer to array[]
+    */
     *matrix = (int **)   malloc( sizeof( int * ) * (height) );
+    
+    /*
+        Step #2: Allocate the memory for each of those individual int arrays.
+        Since we know that these addresses are contiguous, we're going to abuse
+        that property by allocating these all in one step.
+        There's a chance that this might be an unsafe operation-- but since we
+        aren't threaded and we're working within our own virtual address space,
+        we should be perfectly fine.
+    */
     *matrix[0] = (int *) malloc( sizeof( int   ) * (width * height) );
 
-    #ifdef DEBUG
-        printf("DEBUG [malloc_2d_array()]: Made it past the malloc() statements...\n");
-    #endif
+    debug_printf("Made it past the malloc() statements...\n");
+    
     if (*matrix == NULL || *matrix[0] == NULL)
     {
         // Typical error-checking to ensure that the malloc() was successful
         // If it wasn't, then we'll return a value.
         #ifdef DEBUG
-            printf("DEBUG [malloc_2D_array()]: Memory allocation FAILED!\n");
+            printf("DEBUG [malloc_matrix_arr()]: Memory allocation FAILED!\n");
         #endif
         return -1;
     }
@@ -307,15 +347,15 @@ int malloc_2D_array(int *** matrix, int width, int height)
     // Then, we'll make sure each succeeding pointer goes to the right place
     for (int arrPoint = 1; arrPoint < height; arrPoint++)
     {
-        // printf("DEBUG [malloc_2D_array()]: Attempt to allocate the following address: %p\n", (*matrix)[arrPoint]);
-        // printf("DEBUG [malloc_2D_array()]:                 to this following address: %p\n", (*matrix) + (width) * (arrPoint));
+        // printf("DEBUG [malloc_matrix_arr()]: Attempt to allocate the following address: %p\n", (*matrix)[arrPoint]);
+        // printf("DEBUG [malloc_matrix_arr()]:                 to this following address: %p\n", (*matrix) + (width) * (arrPoint));
 
         (*matrix)[arrPoint] =  *(*matrix) + (width) * (arrPoint);
     }
 
     // If debug statements are enabled, this method will print out whether the allocation was successful or not.
     #ifdef DEBUG
-        printf("DEBUG [malloc_2D_array()]: Memory allocation was successful.\n");
+        printf("DEBUG [malloc_matrix_arr()]: Memory allocation was successful.\n");
     #endif
 
     // Return success code 0;
@@ -330,7 +370,7 @@ void init_matrix(matrix * m, int width, int height)
 {
     (*m).width = width;
     (*m).height = height;
-    malloc_2D_array( &( (*m).array), width, height);
+    malloc_matrix_arr( &( (*m).array), width, height);
 }
 
 /*
@@ -379,8 +419,9 @@ matrix matrix_multiplication(matrix m, matrix n)
     return result;
 }
 
-matrix matrix_multiplication_threaded(matrix m, matrix n)
+matrix matrix_multiplication_threaded(matrix m, matrix n, const int num_threads)
 {
+    debug_printf("The number of threads is: %d\n", num_threads);
     // First, we'll need to check that we can even do matrix_multiplication on these two particular
     // matrixes. In order to do so, we'll need to ensure that the widths are equal.
 
@@ -390,7 +431,7 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
     if (m.width != n.height /* Rows in matrixOne must equal columns in matrixTwo */)
     {
         // This cannot be completed
-        printf("ERROR [matrix_multiplication()]: The number of rows in matrix one must be equal to number of columns in matrix two!");
+        debug_printf(" (ERROR) The number of rows in matrix one must be equal to number of columns in matrix two!");
     }
 
 
@@ -407,11 +448,11 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
     // 22 % 4 = Two threads will have an additional row.
     #ifdef DEBUG
         printf("DEBUG [matrix_multiplication_threaded()]: The number of threads with one extra row: %d\n",
-            m.height % NUM_THREADS);
+            m.height % num_threads);
         printf("DEBUG [matrix_multiplication_threaded()]: The minimum number of rows per thread is: %d\n",
-            m.height / NUM_THREADS);
+            m.height / num_threads);
     #endif
-    if ( (m.height / NUM_THREADS) == 0)
+    if ( (m.height / num_threads) == 0)
     {
         // There are too many threads to handle this workload. Print out a warning that we'll
         // use a more appropriate number of threads instead.
@@ -420,14 +461,14 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
         #endif
     }
 
-    pthread_t matrix_threads[NUM_THREADS];
+    pthread_t matrix_threads[num_threads];
 
-    for (int thread = 0; thread < NUM_THREADS ; thread++)
+    for (int thread = 0; thread < num_threads ; thread++)
     {
         int start;
         int end;
 
-        calculate_thread_boundaries(&start, &end, thread, m.height);
+        calculate_thread_boundaries(&start, &end, thread, m.height, num_threads);
 
         // printf("THREAD #%d: Range is row %d to %d. \n", thread, start+1, end+1);
 
@@ -458,7 +499,7 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
         pthread_create(&(matrix_threads[thread]), NULL, pthreaded_calculate_results, a);
     }
 
-    for (int thread = 0; thread < NUM_THREADS; thread++)
+    for (int thread = 0; thread < num_threads; thread++)
     {
         pthread_join(matrix_threads[thread], NULL);
     }
@@ -466,21 +507,21 @@ matrix matrix_multiplication_threaded(matrix m, matrix n)
     return result;
 }
 
-void calculate_thread_boundaries(int * start, int * end, int threadNum, int workAmount)
+void calculate_thread_boundaries(int * start, int * end, int threadNum, int workAmount, const int num_threads)
 {
     /*
     // The minimum number of rows per thread.
-    int min_per_thread = m.height / NUM_THREADS;
+    int min_per_thread = m.height / num_threads;
 
     // Number of threads that will have one extra.
-    int threads_with_extra = m.height % NUM_THREADS;
+    int threads_with_extra = m.height % num_threads;
     */
 
-    *start = (  (threadNum) < (workAmount%NUM_THREADS) ?  (threadNum) * ((workAmount/NUM_THREADS)+1)     :
-                 (workAmount%NUM_THREADS * ((workAmount/NUM_THREADS)+1)) + (   ((threadNum) - workAmount%NUM_THREADS) * (workAmount/NUM_THREADS))   )   ;
+    *start = (  (threadNum) < (workAmount%num_threads) ?  (threadNum) * ((workAmount/num_threads)+1)     :
+                 (workAmount%num_threads * ((workAmount/num_threads)+1)) + (   ((threadNum) - workAmount%num_threads) * (workAmount/num_threads))   )   ;
 
-    *end = (  (threadNum+1) < (workAmount%NUM_THREADS) ?  (threadNum+1) * ((workAmount/NUM_THREADS)+1)     :
-                 (workAmount%NUM_THREADS * ((workAmount/NUM_THREADS)+1)) + (   ((threadNum+1) - workAmount%NUM_THREADS) * (workAmount/NUM_THREADS))   )    - 1;
+    *end = (  (threadNum+1) < (workAmount%num_threads) ?  (threadNum+1) * ((workAmount/num_threads)+1)     :
+                 (workAmount%num_threads * ((workAmount/num_threads)+1)) + (   ((threadNum+1) - workAmount%num_threads) * (workAmount/num_threads))   )    - 1;
 }
 
 
